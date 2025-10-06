@@ -1,9 +1,8 @@
 const https = require("https");
-const { parse } = require("node-html-parser");
 
 exports.handler = async function(event, context) {
   try {
-    // Fetch SOFX page
+    // Fetch the SOFX page
     const html = await new Promise((resolve, reject) => {
       https.get("https://www.sofx.com/category/special-interest/north-america-special-interest/", res => {
         let data = "";
@@ -12,18 +11,14 @@ exports.handler = async function(event, context) {
       }).on("error", err => reject(err));
     });
 
-    // Parse HTML using node-html-parser (single-file library)
-    const root = parse(html);
-    const titles = [];
-    const elements = root.querySelectorAll(".td-module-title a");
-    for (let i = 0; i < Math.min(5, elements.length); i++) {
-      titles.push(elements[i].text.trim());
-    }
+    // Simple regex to pull first 5 news titles
+    const matches = [...html.matchAll(/<h3 class="td-module-title"><a [^>]+>(.*?)<\/a><\/h3>/gi)];
+    const titles = matches.slice(0,5).map(m => m[1].replace(/&amp;/g,"&").replace(/&quot;/g,'"').trim());
 
     // Build SSML response
     let speech = "<speak>Here are today's top five North America Special Interest news items:<break time='500ms'/>";
     titles.forEach((t, i) => {
-      speech += `<break time='400ms'/>${i + 1}. ${t}.`;
+      speech += `<break time='400ms'/>${i+1}. ${t}.`;
     });
     speech += "<break time='500ms'/>End of briefing.</speak>";
 
