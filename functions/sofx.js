@@ -1,20 +1,24 @@
-const axios = require("axios");
-const cheerio = require("cheerio");
+const https = require("https");
+const { parse } = require("node-html-parser");
 
 exports.handler = async function(event, context) {
   try {
-    // Fetch the SOFX North America Special Interest page
-    const response = await axios.get(
-      "https://www.sofx.com/category/special-interest/north-america-special-interest/"
-    );
-    const html = response.data;
-    const $ = cheerio.load(html);
-
-    // Grab the first 5 news titles
-    let titles = [];
-    $(".td-module-title a").each((i, el) => {
-      if (i < 5) titles.push($(el).text().trim());
+    // Fetch SOFX page
+    const html = await new Promise((resolve, reject) => {
+      https.get("https://www.sofx.com/category/special-interest/north-america-special-interest/", res => {
+        let data = "";
+        res.on("data", chunk => data += chunk);
+        res.on("end", () => resolve(data));
+      }).on("error", err => reject(err));
     });
+
+    // Parse HTML using node-html-parser (single-file library)
+    const root = parse(html);
+    const titles = [];
+    const elements = root.querySelectorAll(".td-module-title a");
+    for (let i = 0; i < Math.min(5, elements.length); i++) {
+      titles.push(elements[i].text.trim());
+    }
 
     // Build SSML response
     let speech = "<speak>Here are today's top five North America Special Interest news items:<break time='500ms'/>";
@@ -27,14 +31,12 @@ exports.handler = async function(event, context) {
       statusCode: 200,
       body: JSON.stringify({ fulfillmentText: speech })
     };
+
   } catch (err) {
     console.error(err);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        fulfillmentText:
-          "I'm sorry, I couldn't load the latest SOFX news at this time."
-      })
+      body: JSON.stringify({ fulfillmentText: "I couldn't load the latest SOFX news at this time." })
     };
   }
 };
