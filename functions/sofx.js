@@ -11,9 +11,23 @@ exports.handler = async function(event, context) {
       }).on("error", err => reject(err));
     });
 
-    // Simple regex to pull first 5 news titles
-    const matches = [...html.matchAll(/<h3 class="td-module-title"><a [^>]+>(.*?)<\/a><\/h3>/gi)];
-    const titles = matches.slice(0,5).map(m => m[1].replace(/&amp;/g,"&").replace(/&quot;/g,'"').trim());
+    // Robust parsing: split by known article wrapper
+    const splitByArticle = html.split('<h3 class="td-module-title">');
+    const titles = [];
+
+    for (let i = 1; i < splitByArticle.length && titles.length < 5; i++) {
+      const segment = splitByArticle[i];
+      const match = segment.match(/<a [^>]+>(.*?)<\/a>/i);
+      if (match && match[1]) {
+        // Decode HTML entities
+        const title = match[1].replace(/&amp;/g,"&").replace(/&quot;/g,'"').replace(/&#39;/g,"'").trim();
+        titles.push(title);
+      }
+    }
+
+    if (titles.length === 0) {
+      titles.push("No news items found.");
+    }
 
     // Build SSML response
     let speech = "<speak>Here are today's top five North America Special Interest news items:<break time='500ms'/>";
